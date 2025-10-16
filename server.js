@@ -1,36 +1,51 @@
-const express = require('express');
-const multer = require('multer');
-const path = require('path');
-const cors = require('cors');
-const fs = require('fs');
+// ===== IMPORTS =====
+import express from "express";
+import multer from "multer";
+import cors from "cors";
+import dotenv from "dotenv";
+import { v2 as cloudinary } from "cloudinary";
+import { CloudinaryStorage } from "multer-storage-cloudinary";
 
+// ===== CONFIG =====
+dotenv.config();
 const app = express();
-
-// Activer CORS pour que le front-end puisse accéder au backend
 app.use(cors());
+app.use(express.json());
 
-// Créer le dossier uploads s'il n'existe pas
-const uploadDir = path.join(__dirname, 'uploads');
-if (!fs.existsSync(uploadDir)) {
-    fs.mkdirSync(uploadDir);
-}
+// ===== CLOUDINARY CONFIGURATION =====
+cloudinary.config({
+    cloud_name: process.env.CLOUDINARY_CLOUD_NAME,  // ⚙️ à définir dans Render
+    api_key: process.env.CLOUDINARY_API_KEY,
+    api_secret: process.env.CLOUDINARY_API_SECRET
+});
 
-// Configurer Multer pour stocker les fichiers
-const storage = multer.diskStorage({
-    destination: function (req, file, cb) {
-        cb(null, 'uploads/');
+// ===== MULTER + CLOUDINARY STORAGE =====
+const storage = new CloudinaryStorage({
+    cloudinary,
+    params: {
+        folder: "uploads_comptabilite",   // 📁 dossier créé automatiquement sur Cloudinary
+        resource_type: "auto",            // accepte images, PDF, etc.
     },
-    filename: function (req, file, cb) {
-        cb(null, Date.now() + path.extname(file.originalname));
-    }
-});
-const upload = multer({ storage: storage });
-
-// Endpoint pour uploader un fichier
-app.post('/upload', upload.single('document'), (req, res) => {
-    res.send('Fichier téléchargé avec succès !');
 });
 
-// Lier le port à Render ou à localhost
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`Serveur lancé sur le port ${PORT}`));
+const upload = multer({ storage });
+
+// ===== ROUTES =====
+
+// ✅ Route d’accueil
+app.get("/", (req, res) => {
+    res.send("🚀 API Comptabilité A&P en ligne et connectée à Cloudinary !");
+});
+
+// ✅ Route de téléversement
+app.post("/upload", upload.single("document"), (req, res) => {
+    if (!req.file) return res.status(400).send("Aucun fichier reçu.");
+    res.send(`✅ Fichier téléversé avec succès ! URL : ${req.file.path}`);
+});
+
+// ===== LANCEMENT DU SERVEUR =====
+const PORT = process.env.PORT || 4000;
+
+app.listen(PORT, () => {
+    console.log(`✅ Serveur démarré sur le port ${PORT}`);
+});
